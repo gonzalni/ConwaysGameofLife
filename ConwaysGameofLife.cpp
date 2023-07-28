@@ -1,132 +1,167 @@
 #include <iostream>
 #include <cstdlib>
-#include <ctime>
+#include <chrono>
 #include <unistd.h>
+#include <random>
+#include <thread>
 #define OS_MAC
 
-using namespace std;
 void clearScreen(void);
 
-const int lines = 25;
-const int columns = 25;
+int lines = 0;
+int columns = 0;
 
-void fillMatrix(string matrix[lines][columns]){
+void fillMatrix(char** matrix) {
     for (int i = 0; i < lines; i++) {
         for (int j = 0; j < columns; j++) {
-            matrix[i][j] = " ";
+            matrix[i][j] = ' ';
         }
     }
 }
 
 void clearScreen(void) {
+    #if defined(OS_WIN)
 
-  #if defined(OS_WIN)
-
-  #elif defined(OS_MAC)
-    cout << "\033[2J;" << "\033[1;1H"; 
-  #endif
-
+    #elif defined(OS_MAC)
+    std::cout << "\033[2J;" << "\033[1;1H"; 
+    #endif
 }
 
-void firstGen(string matrix[lines][columns], int m){
+void firstGen(char** matrix, int m) {
     int count = 0;
+    std::random_device rd;
+    std::mt19937 engine(rd());
+    std::uniform_int_distribution<int> distL(0, lines - 1);
+    std::uniform_int_distribution<int> distC(0, columns - 1);
     while (count < m) {
-        int zei = rand() % lines;
-        int spa = rand() % columns;
-        if (matrix[zei][spa] != "*") {
-            matrix[zei][spa] = "*";
+        int Lines = distL(engine);
+        int Columns = distC(engine);
+        if (matrix[Lines][Columns] != '*') {
+            matrix[Lines][Columns] = '*';
             count++;
         }
     }
 }
 
-int ZdlN(const string matrix[lines][columns], int zei, int spa) {
-    int lebendeNachbarn = 0;
+int numberOfLivingNeighbours(char** matrix, int Lines, int Columns) {
+    int livingNeighbours = 0;
     for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
         for (int colOffset = -1; colOffset <= 1; colOffset++) {
             if (rowOffset == 0 && colOffset == 0) {
                 continue;
             }
 
-            int nachbarZeile = zei + rowOffset;
-            int nachbarSpalte = spa + colOffset;
+            int neighbourLine = Lines + rowOffset;
+            int neighbourColumn = Columns + colOffset;
 
-            if (nachbarZeile >= 0 && nachbarZeile < lines && nachbarSpalte >= 0 && nachbarSpalte < columns) {
-                if (matrix[nachbarZeile][nachbarSpalte] == "*") {
-                    lebendeNachbarn++;
+            if (neighbourLine >= 0 && neighbourLine < lines && neighbourColumn >= 0 && neighbourColumn < columns) {
+                if (matrix[neighbourLine][neighbourColumn] == '*') {
+                    livingNeighbours++;
                 }
             }
         }
     }
-    return lebendeNachbarn;
+    return livingNeighbours;
 }
 
-void NeueGeneration(string matrix[lines][columns]) {
-    string neueMatrix[lines][columns];
-
+void NewGeneration(char** matrix, char** newMatrix) {
     for (int i = 0; i < lines; i++) {
         for (int j = 0; j < columns; j++) {
-            int lebendeNachbarn = ZdlN(matrix, i, j);
-            if (matrix[i][j] == "*") {
-                if (lebendeNachbarn < 2 || lebendeNachbarn > 3) {
-                    neueMatrix[i][j] = " ";
+            int livingNeighbours = numberOfLivingNeighbours(matrix, i, j);
+            if (matrix[i][j] == '*') {
+                if (livingNeighbours < 2 || livingNeighbours > 3) {
+                    newMatrix[i][j] = ' ';
                 } else {
-                    neueMatrix[i][j] = "*";
+                    newMatrix[i][j] = '*';
                 }
             } else {
-                if (lebendeNachbarn == 3) {
-                    neueMatrix[i][j] = "*";
+                if (livingNeighbours == 3) {
+                    newMatrix[i][j] = '*';
                 } else {
-                    neueMatrix[i][j] = " ";
+                    newMatrix[i][j] = ' ';
                 }
+            }
+        }
+    }
+}
+
+void output(char** matrix) {
+    std::cout << "|" << std::string(columns * 2 + 1, '-') << "|" << std::endl;
+    for (int i = 0; i < lines; i++) {
+        std::cout << "| ";
+        for (int j = 0; j < columns; j++) {
+            std::cout << matrix[i][j] << " ";
+        }
+        std::cout << "|" << std::endl;
+    }
+    std::cout << "|" << std::string(columns * 2 + 1, '-') << "|" << std::endl;
+}
+
+template <typename T>
+void customSwap(T& a, T& b) {
+    T temp = a;
+    a = b;
+    b = temp;
+}
+
+void genLoop(char** matrix, const int Gen) {
+    char** newMatrix = new char*[lines];
+    for (int i = 0; i < lines; i++) {
+        newMatrix[i] = new char[columns];
+    }
+
+    for (int a = 0; a < Gen - 1; a++) {
+        std::this_thread::sleep_for(std::chrono::microseconds(400000));
+        clearScreen();
+        NewGeneration(matrix, newMatrix);
+        std::cout << "\nGeneration " << a + 2 << ":\n";
+        output(newMatrix);
+
+        for (int i = 0; i < lines; i++) {
+            for (int j = 0; j < columns; j++) {
+                matrix[i][j] = newMatrix[i][j];
             }
         }
     }
 
     for (int i = 0; i < lines; i++) {
-        for (int j = 0; j < columns; j++) {
-            matrix[i][j] = neueMatrix[i][j];
-        }
+        delete[] newMatrix[i];
     }
+    delete[] newMatrix;
+    newMatrix = nullptr;
 }
 
-void output(const string matrix[lines][columns]) {
-    cout << "|" << string(columns * 2 + 1, '-') << "|" << endl;
-    for (int i = 0; i < lines; i++) {
-        cout << "| ";
-        for (int j = 0; j < columns; j++) {
-            cout << matrix[i][j] << " ";
-        }
-        cout << "|" << endl;
-    }
-    cout << "|" << string(columns * 2 + 1, '-') << "|" << endl;
-}
 
-void genLoop(string matrix[lines][columns], int Gen){
-    for (int a = 0; a < Gen - 1; a++) {
-        usleep(400000);
-        clearScreen();
-        NeueGeneration(matrix);
-        cout << "\nGeneration " << a + 2  << ":\n";
-        output(matrix);
-    }
-}
+
 
 int main() {
-    srand(time(0));
-    string matrix[lines][columns];
     int m;
     int Gen;
-    cout << "\nNumber of living cells in the first generation: ";
-    cin >> m;
-    cout << "\nHow many generations should be simulated?: ";
-    cin >> Gen;
-    cout << "\n";
+    int size;
+    std::cout << "\nNumber of living cells in the first generation: ";
+    std::cin >> m;
+    std::cout << "\nHow many generations should be simulated?: ";
+    std::cin >> Gen;
+    std::cout << "\nHow big should the environment be?: ";
+    std::cin >> size;
+    std::cout << "\n";
+    lines = size;
+    columns = size;
+
+    char** matrix = new char*[lines];
+    for (int i = 0; i < lines; i++) {
+        matrix[i] = new char[columns];
+    }
+
     fillMatrix(matrix);
     firstGen(matrix, m);
-    cout << "\nGeneration " << 1 << ":\n";
+    std::cout << "\nGeneration " << 1 << ":\n";
     output(matrix);
     genLoop(matrix, Gen);
 
+    for (int i = 0; i < lines; i++) {
+        delete[] matrix[i];
+    }
+    delete[] matrix;
     return 0;
 }
